@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -24,11 +25,30 @@ namespace iChen.Web
 			public string Environment
 			{
 				get {
-					if (m_OS == null) {
-						var name = (from x in new ManagementObjectSearcher("SELECT Caption FROM Win32_OperatingSystem").Get().Cast<ManagementObject>()
-												select x.GetPropertyValue("Caption")).FirstOrDefault();
-						m_OS = name?.ToString() ?? "Unknown";
+					if (m_OS != null) return m_OS;
+
+					try {
+						if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+							try {
+								var name = (from x in new ManagementObjectSearcher("SELECT Caption FROM Win32_OperatingSystem").Get().Cast<ManagementObject>()
+														select x.GetPropertyValue("Caption")).FirstOrDefault();
+								m_OS = name?.ToString() ?? "Unknown Windows";
+							} catch {
+								m_OS = "Unknown Windows";
+							}
+						} else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
+							try {
+								m_OS = System.Environment.OSVersion.ToString();
+							} catch {
+								m_OS = "Unknown Linux";
+							}
+						} else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+							m_OS = "OS/X";
+						}
+					} catch {
+						m_OS = "Unknown";
 					}
+
 					return m_OS;
 				}
 			}

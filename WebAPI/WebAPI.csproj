@@ -17,6 +17,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>bin\Debug</OutputPath>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -24,24 +25,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="wwwroot\**" />
-    <Content Remove="wwwroot\**" />
-    <EmbeddedResource Remove="wwwroot\**" />
-    <None Remove="wwwroot\**" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Compile Remove="Utils\BasicAuthenticationFilter.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\OpenProtocol\OpenProtocol\JSON\JsonSerializationContractResolver.cs" Link="JSON\JsonSerializationContractResolver.cs" />
-    <Compile Include="..\..\OpenProtocol\OpenProtocol\JSON\Serializer.cs" Link="JSON\Serializer.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Folder Include="JSON\" />
-    <Folder Include="Properties\" />
   </ItemGroup>
 
   <ItemGroup>
