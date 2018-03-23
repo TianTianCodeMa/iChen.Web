@@ -166,18 +166,19 @@ namespace iChen.Web
 			if (string.IsNullOrWhiteSpace(controller.Name)) return BadRequest($"Invalid controller name: [{controller.Name}].");
 			controller.Name = controller.Name.Trim();
 
-			if (string.IsNullOrWhiteSpace(controller.m_ControllerTypeText)) return BadRequest($"Invalid controller type: [{controller.m_ControllerTypeText}].");
-			if (!Enum.TryParse(controller.m_ControllerTypeText.Trim(), true, out OpenProtocol.ControllerTypes filter)) return BadRequest($"Invalid controller type: [{controller.m_ControllerTypeText}].");
-			controller.BaseControllerType = filter;
+			OpenProtocol.ControllerTypes ctype = OpenProtocol.ControllerTypes.Unknown;
 
-			if (string.IsNullOrWhiteSpace(controller.Version)) return BadRequest($"Invalid version: [{controller.Version}].");
-			controller.Version = controller.Version.Trim();
+			if (!string.IsNullOrWhiteSpace(controller.m_ControllerTypeText)) {
+				if (!Enum.TryParse(controller.m_ControllerTypeText.Trim(), true, out ctype)) return BadRequest($"Invalid controller type: [{controller.m_ControllerTypeText}].");
+			}
 
-			if (string.IsNullOrWhiteSpace(controller.Model)) return BadRequest($"Invalid machine model: [{controller.Model}].");
-			controller.Model = controller.Model.Trim();
+			controller.BaseControllerType = ctype;
 
-			if (string.IsNullOrWhiteSpace(controller.IP)) return BadRequest($"Invalid IP address: [{controller.IP}].");
-			controller.IP = controller.IP.Trim();
+			controller.Version = string.IsNullOrWhiteSpace(controller.Version) ? "0.0.0" : controller.Version.Trim();
+
+			controller.Model = string.IsNullOrWhiteSpace(controller.Model) ? "Unknown" : controller.Model.Trim();
+
+			controller.IP = string.IsNullOrWhiteSpace(controller.IP) ? "1.1.1.1" : controller.IP.Trim();
 
 			if (!DataStore.IPRegex.IsMatch(controller.IP)) return BadRequest($"Invalid IP address: [{controller.IP}].");
 
