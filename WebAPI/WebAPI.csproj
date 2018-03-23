@@ -1,70 +1,70 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <ApplicationIcon />
-    <OutputType>Library</OutputType>
-    <StartupObject />
-    <AssemblyName>iChen.Web</AssemblyName>
-    <RootNamespace>iChen.Web</RootNamespace>
-    <Version>4.1.0.0</Version>
-    <Authors />
-    <Company>Chen Hsong Holdings Ltd.</Company>
-    <Product>iChen Web Interface</Product>
-    <Description>Web interfaces for iChen 4.0.</Description>
-    <Copyright>Copyright © 2016-2017, Chen Hsong Holdings Ltd. All rights reserved.</Copyright>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ApplicationIcon />
+		<OutputType>Library</OutputType>
+		<StartupObject />
+		<AssemblyName>iChen.Web</AssemblyName>
+		<RootNamespace>iChen.Web</RootNamespace>
+		<Version>4.1.0.0</Version>
+		<Authors />
+		<Company>Chen Hsong Holdings Ltd.</Company>
+		<Product>iChen Web Interface</Product>
+		<Description>Web interfaces for iChen 4.0.</Description>
+		<Copyright>Copyright © 2016-2017, Chen Hsong Holdings Ltd. All rights reserved.</Copyright>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>bin\Debug</OutputPath>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<OutputPath>bin\Debug</OutputPath>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>bin\Release</OutputPath>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<OutputPath>bin\Release</OutputPath>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Utils\BasicAuthenticationFilter.cs" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Remove="Utils\BasicAuthenticationFilter.cs" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="JSON\" />
-  </ItemGroup>
+	<ItemGroup>
+		<Folder Include="JSON\" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="DotNetCore.NPOI" Version="1.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore" Version="2.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.ResponseCompression" Version="2.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Rewrite" Version="2.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.StaticFilesEx" Version="1.0.0.4" />
-    <PackageReference Include="Microsoft.DotNet.Analyzers.Compatibility" Version="0.1.2-alpha" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="2.0.1" />
-    <PackageReference Include="Microsoft.Windows.Compatibility" Version="2.0.0-preview1-25914-04" />
-    <PackageReference Include="NETStandard.Library" Version="2.0.1" />
-    <PackageReference Include="System.ValueTuple" Version="4.4.0" />
-    <PackageReference Include="WindowsAzure.Storage" Version="8.6.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="DotNetCore.NPOI" Version="1.0.2" />
+		<PackageReference Include="Microsoft.AspNetCore" Version="2.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.ResponseCompression" Version="2.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Rewrite" Version="2.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.StaticFilesEx" Version="1.0.0.4" />
+		<PackageReference Include="Microsoft.DotNet.Analyzers.Compatibility" Version="0.1.2-alpha" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="2.0.1" />
+		<PackageReference Include="Microsoft.Windows.Compatibility" Version="2.0.0-preview1-25914-04" />
+		<PackageReference Include="Newtonsoft.Json" Version="11.0.1" />
+		<PackageReference Include="System.ValueTuple" Version="4.4.0" />
+		<PackageReference Include="WindowsAzure.Storage" Version="9.1.0" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.0" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="iChen.Analytics">
-      <HintPath>..\lib\iChen.Analytics.dll</HintPath>
-    </Reference>
-    <Reference Include="iChen.OpenProtocol">
-      <HintPath>..\lib\iChen.OpenProtocol.dll</HintPath>
-    </Reference>
-    <Reference Include="iChen.Persistence.Cloud">
-      <HintPath>..\lib\iChen.Persistence.Cloud.dll</HintPath>
-    </Reference>
-    <Reference Include="iChen.Persistence.Config">
-      <HintPath>..\lib\iChen.Persistence.Config.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+	<ItemGroup>
+		<Reference Include="iChen.Analytics">
+			<HintPath>..\lib\iChen.Analytics.dll</HintPath>
+		</Reference>
+		<Reference Include="iChen.OpenProtocol">
+			<HintPath>..\lib\iChen.OpenProtocol.dll</HintPath>
+		</Reference>
+		<Reference Include="iChen.Persistence.Cloud">
+			<HintPath>..\lib\iChen.Persistence.Cloud.dll</HintPath>
+		</Reference>
+		<Reference Include="iChen.Persistence.Config">
+			<HintPath>..\lib\iChen.Persistence.Config.dll</HintPath>
+		</Reference>
+	</ItemGroup>
 
 </Project>
