@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using iChen.Persistence.Server;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -11,6 +11,10 @@ namespace iChen.Web
 {
 	public partial class ServerConfigController
 	{
+		private readonly Regex IPorSerialPortRegex = new Regex(
+			@"^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\:\d{1,5})|COM\d+|tty\w+)?$",
+				RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
 		#region Data class
 
 		public class ControllerX : Persistence.Server.Controller
@@ -180,7 +184,7 @@ namespace iChen.Web
 
 			controller.IP = string.IsNullOrWhiteSpace(controller.IP) ? "1.1.1.1" : controller.IP.Trim();
 
-			if (!DataStore.IPRegex.IsMatch(controller.IP)) return BadRequest($"Invalid IP address: [{controller.IP}].");
+			if (!IPorSerialPortRegex.IsMatch(controller.IP)) return BadRequest($"Invalid IP address: [{controller.IP}].");
 
 			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
 
@@ -233,7 +237,7 @@ namespace iChen.Web
 				if (string.IsNullOrWhiteSpace(delta.IP)) return BadRequest($"Invalid IP address: [{delta.IP}].");
 				delta.IP = delta.IP.Trim();
 
-				if (!DataStore.IPRegex.IsMatch(delta.IP)) return BadRequest($"Invalid IP address: [{delta.IP}].");
+				if (!IPorSerialPortRegex.IsMatch(delta.IP)) return BadRequest($"Invalid IP address: [{delta.IP}].");
 			}
 
 			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
