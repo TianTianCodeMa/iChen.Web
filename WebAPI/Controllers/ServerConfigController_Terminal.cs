@@ -57,7 +57,7 @@ namespace iChen.Web
 		[HttpPost("terminal")]
 		public async Task<IActionResult> UpdateTerminalConfigFile ([FromBody] JToken json, CancellationToken ct)
 		{
-			if (WebSettings.TerminalConfigFilePath == null) throw new ApplicationException("No Utils.TerminalConfigFilePath specified.");
+			if (WebSettings.TerminalConfigFilePath == null) throw new ApplicationException("No TerminalConfigFilePath specified.");
 
 			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
 

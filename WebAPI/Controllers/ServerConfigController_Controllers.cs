@@ -9,6 +9,28 @@ using Newtonsoft.Json;
 
 namespace iChen.Web
 {
+	public enum KnownControllerTypes
+	{
+		Unknown = 99,
+		Ai01 = 1,
+		Ai11 = 2,
+		Ai02 = 6,
+		Ai12 = 7,
+		CPC60 = 8,
+		MPC60 = 9,
+		CDC2000 = 98,
+		CDC3000 = 4,
+		CDC2000WIN = 3,
+		SPS3300 = 0,
+		NewAge = 5,
+		CBmold300 = 10,
+		CBmold800 = 11,
+		MPC7 = 12,
+
+		// Supported third-party controllers
+		Inovance = 300124
+	}
+
 	public partial class ServerConfigController
 	{
 		private readonly Regex IPorSerialPortRegex = new Regex(
@@ -68,7 +90,7 @@ namespace iChen.Web
 			}
 
 			[JsonIgnore]
-			public OpenProtocol.ControllerTypes BaseControllerType
+			public int BaseControllerType
 			{
 				get { return base.Type; }
 				set { base.Type = value; }
@@ -170,10 +192,15 @@ namespace iChen.Web
 			if (string.IsNullOrWhiteSpace(controller.Name)) return BadRequest($"Invalid controller name: [{controller.Name}].");
 			controller.Name = controller.Name.Trim();
 
-			OpenProtocol.ControllerTypes ctype = OpenProtocol.ControllerTypes.Unknown;
+			var ctype = 0;
 
 			if (!string.IsNullOrWhiteSpace(controller.m_ControllerTypeText)) {
-				if (!Enum.TryParse(controller.m_ControllerTypeText.Trim(), true, out ctype)) return BadRequest($"Invalid controller type: [{controller.m_ControllerTypeText}].");
+				if (!int.TryParse(controller.m_ControllerTypeText.Trim(), out ctype)) {
+					if (Enum.TryParse(controller.m_ControllerTypeText.Trim(), true, out KnownControllerTypes ktype))
+						ctype = (int) ktype;
+					else
+						return BadRequest($"Invalid controller type: [{controller.m_ControllerTypeText}].");
+				}
 			}
 
 			controller.BaseControllerType = ctype;
@@ -219,8 +246,14 @@ namespace iChen.Web
 			}
 
 			if (!string.IsNullOrEmpty(delta.m_ControllerTypeText)) {
-				if (!Enum.TryParse(delta.m_ControllerTypeText.Trim(), true, out OpenProtocol.ControllerTypes type)) return BadRequest($"Invalid controller type: [{delta.m_ControllerTypeText}].");
-				delta.BaseControllerType = type;
+				if (!int.TryParse(delta.m_ControllerTypeText.Trim(), out int ctype)) {
+					if (Enum.TryParse(delta.m_ControllerTypeText.Trim(), true, out KnownControllerTypes ktype))
+						ctype = (int) ktype;
+					else
+						return BadRequest($"Invalid controller type: [{delta.m_ControllerTypeText}].");
+				}
+
+				delta.BaseControllerType = ctype;
 			}
 
 			if (delta.Version != null) {
