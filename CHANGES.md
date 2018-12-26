@@ -1,6 +1,11 @@
 Release 4.2
 ===========
 
+New Festures
+------------
+
+- HTTPS is enabled on Kestrel.
+
 Breaking Changes
 ----------------
 
