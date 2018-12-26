@@ -14,8 +14,10 @@ using Newtonsoft.Json.Converters;
 
 namespace iChen.Web
 {
-	class Startup
+	internal class Startup
 	{
+		public static bool UseHSTS = false;
+
 		public Startup (IConfiguration configuration)
 		{
 			Configuration = configuration;
@@ -79,15 +81,14 @@ namespace iChen.Web
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-		public void Configure (
-			IApplicationBuilder app
-			, IHostingEnvironment env
-			, ILoggerFactory loggerFactory)
+		public void Configure (IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
 		{
 			app.UseMiddleware<ExceptionCatchMiddleware>();
 
 			if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
 
+			if (UseHSTS) app.UseHsts();
+			//app.UseHttpsRedirection();
 			app.UseResponseCompression();
 
 			// Rewrite all URL's which is not referring to an actual file (i.e. with an extension

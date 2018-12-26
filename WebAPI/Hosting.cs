@@ -67,7 +67,7 @@ namespace iChen.Web
 		// Web host
 		private static IWebHost m_Host = null;
 
-		public static IWebHost CreateWebHost (string DebugLevel, string DatabaseSchema = null, ushort DatabaseVersion = 1, string IPandPort = "http://localhost:5757", string WwwRoot = @"./www", string TerminalConfigFile = @"./www/terminal/config.js", string LogsPath = @"./logs", int SessionTimeOut = 15)
+		public static IWebHost CreateWebHost (string DebugLevel, string DatabaseSchema = null, ushort DatabaseVersion = 1, string HttpsCertificateFile = null, string HttpsCertificateHash = null, ushort Port = 5757, string WwwRoot = @"./www", string TerminalConfigFile = @"./www/terminal/config.js", string LogsPath = @"./logs", int SessionTimeOut = 15)
 		{
 			var basedir = AppDomain.CurrentDomain.BaseDirectory;
 			if (!Path.IsPathRooted(WwwRoot)) WwwRoot = (new Uri(Path.Combine(basedir, WwwRoot))).LocalPath;
@@ -82,11 +82,17 @@ namespace iChen.Web
 			LogController.LogsStorageAccount = LogController.LogsStorageKey = null;
 			if (SessionTimeOut > 0) Sessions.TimeOut = SessionTimeOut * 60 * 1000;
 
+			var https = !string.IsNullOrWhiteSpace(HttpsCertificateFile) && !string.IsNullOrWhiteSpace(HttpsCertificateHash);
+
+			if (https) Startup.UseHSTS = true;
+
 			var builder = new WebHostBuilder()
-												.UseKestrel()
+												.UseKestrel(options => options.ListenAnyIP(Port, listen => {
+													if (https) listen.UseHttps(HttpsCertificateFile.Trim(), HttpsCertificateHash.Trim());
+												}))
 												.UseWebRoot(WebSettings.WwwRootPath)
-												.UseStartup<Startup>()
-												.UseUrls(IPandPort);
+												//.UseSetting("https_port", "5758")			// HTTPS redirection port
+												.UseStartup<Startup>();
 
 			switch (DebugLevel.ToUpperInvariant()) {
 				case "TRACE": WebSettings.LoggerLevel = LogLevel.Trace; break;
@@ -109,38 +115,53 @@ namespace iChen.Web
 			return builder.Build();
 		}
 
-		/// <summary>Start self-hosted website and Web API interface</summary>
-		/// <param name="DebugLevel">Console logger minimum level.</param>
-		/// <param name="DatabaseSchema">Specific schema (if any) of the database; default "dbo".</param>
-		/// <param name="DatabaseVersion">Specific version of the database; default 1.</param>
-		/// <param name="IPandPort">Website IP and port number.</param>
-		/// <param name="WwwRoot">Root folder of the website.</param>
-		/// <param name="TerminalConfigFile">Path to the iChen Terminal's config file (config.js)</param>
-		/// <param name="LogsPath">Path to the logs folders.</param>
-		/// <param name="SessionTimeOut">Period of inactivity to invalidate a login session (in minutes).</param>
-		public static void RunWebHost (string DebugLevel, string DatabaseSchema = null, ushort DatabaseVersion = 1, string IPandPort = "http://localhost:5757", string WwwRoot = @"./www", string TerminalConfigFile = @"./www/terminal/config.js", string LogsPath = @"./logs", int SessionTimeOut = 15)
+		public static void RunWebHost (
+													string DebugLevel
+													, string DatabaseSchema = null
+													, ushort DatabaseVersion = 1
+													, string HttpsCertificateFile = null
+													, string HttpsCertificateHash = null
+													, ushort Port = 5757
+													, string WwwRoot = @"./www"
+													, string TerminalConfigFile = @"./www/terminal/config.js"
+													, string LogsPath = @"./logs"
+													, int SessionTimeOut = 15
+		)
 		{
 			if (m_Host != null) throw new ApplicationException("Web host is already started.");
 
 			if (DatabaseSchema != null && string.IsNullOrWhiteSpace(DatabaseSchema)) throw new ArgumentNullException(nameof(DatabaseSchema));
 			if (DatabaseVersion <= 0) throw new ArgumentOutOfRangeException(nameof(DatabaseVersion));
 			if (string.IsNullOrWhiteSpace(DebugLevel)) throw new ArgumentOutOfRangeException(nameof(DebugLevel));
-			if (string.IsNullOrWhiteSpace(IPandPort)) throw new ArgumentOutOfRangeException(nameof(IPandPort));
 			if (string.IsNullOrWhiteSpace(WwwRoot)) throw new ArgumentOutOfRangeException(nameof(WwwRoot));
 			if (string.IsNullOrWhiteSpace(TerminalConfigFile)) throw new ArgumentOutOfRangeException(nameof(TerminalConfigFile));
 			if (string.IsNullOrWhiteSpace(LogsPath)) throw new ArgumentOutOfRangeException(nameof(LogsPath));
+			if (!string.IsNullOrWhiteSpace(HttpsCertificateFile) && string.IsNullOrWhiteSpace(HttpsCertificateHash)) throw new ArgumentNullException(nameof(HttpsCertificateHash));
 
-			m_Host = CreateWebHost(DebugLevel, DatabaseSchema, DatabaseVersion, IPandPort, WwwRoot, TerminalConfigFile, LogsPath, SessionTimeOut);
+			m_Host = CreateWebHost(DebugLevel, DatabaseSchema, DatabaseVersion, HttpsCertificateFile, HttpsCertificateHash, Port, WwwRoot, TerminalConfigFile, LogsPath, SessionTimeOut);
 
 			m_Host.Start();
 		}
 
-		public static void RunAzureWebHost (string DebugLevel, string StorageAccount, string StorageKey, string DatabaseSchema = null, ushort DatabaseVersion = 1, string IPandPort = "http://localhost:5757", string WwwRoot = @"./www", string TerminalConfigFile = @"./www/terminal/config.js", int SessionTimeOut = 15)
+		public static void RunAzureWebHost (
+													string DebugLevel
+													, string StorageAccount
+													, string StorageKey
+													, string DatabaseSchema = null
+													, ushort DatabaseVersion = 1
+													, string HttpsCertificateFile = null
+													, string HttpsCertificateHash = null
+													, ushort Port = 5757
+													, string WwwRoot = @"./www"
+													, string TerminalConfigFile = @"./www/terminal/config.js"
+													, int SessionTimeOut = 15
+		)
 		{
 			if (string.IsNullOrWhiteSpace(StorageAccount)) throw new ArgumentOutOfRangeException(nameof(StorageAccount));
 			if (string.IsNullOrWhiteSpace(StorageKey)) throw new ArgumentOutOfRangeException(nameof(StorageKey));
+			if (!string.IsNullOrWhiteSpace(HttpsCertificateFile) && string.IsNullOrWhiteSpace(HttpsCertificateHash)) throw new ArgumentNullException(nameof(HttpsCertificateHash));
 
-			m_Host = CreateWebHost(DebugLevel, DatabaseSchema, DatabaseVersion, IPandPort, WwwRoot, TerminalConfigFile, "NO_LOGS_PATH", SessionTimeOut);
+			m_Host = CreateWebHost(DebugLevel, DatabaseSchema, DatabaseVersion, HttpsCertificateFile, HttpsCertificateHash, Port, WwwRoot, TerminalConfigFile, "NO_LOGS_PATH", SessionTimeOut);
 
 			LogController.LogsStorageAccount = StorageAccount.Trim();
 			LogController.LogsStorageKey = StorageKey.Trim();
