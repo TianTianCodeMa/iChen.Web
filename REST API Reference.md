@@ -1,14 +1,14 @@
-iChen&reg; 4.1 REST API Reference
-===================================
+iChen® 4.1 REST API Reference
+=============================
 
-Copyright &copy; Chen Hsong Holdings Ltd.  All rights reserved.  
+Copyright © Chen Hsong Holdings Ltd.  All rights reserved.  
 Document Version: 4.1  
 
 
 Introduction
 ------------
 
-A REST API is exposed by the iChen&reg; Server 4.1 for advanced data 
+A REST API is exposed by the iChen® Server 4.1 for advanced data 
 management purposes. Third party software can utilize this REST API by making 
 standard HTTP calls to the listening port (default 5757). 
 
@@ -20,7 +20,7 @@ API Security
 ------------
 
 The REST API is secured and can only be accessed by users with admin 
-privileges. The user must first login to the iChen&reg; Server 4.1 via the [Login API](#login) 
+privileges. The user must first login to the iChen® Server 4.1 via the [Login API](#login) 
 before any other REST API can be used. 
 
 When logging in, a valid password must be provided. A user account with this 
@@ -28,7 +28,7 @@ password must exist on the server for this login operation to succeed. In
 addition, the account must have administrative authority (i.e. its valid 
 authorization [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters) must be "All"). 
 
-When iChen&reg; Server 4.1 responds to a successful login attempt, a cookie 
+When iChen® Server 4.1 responds to a successful login attempt, a cookie 
 is included within the response header containing a unique ID for the login 
 session. This cookie must be included in any subsequent REST API calls. 
 Calling a REST API without a valid session ID cookie will always get back a 
@@ -93,21 +93,22 @@ authority), a 401 (Unauthorized) error is returned.
 
 ### Filters
 
-The `filters` property is serialized to JSON as a *comma-separated* string 
-containing the type(s) of messages interested in receiving: 
+The `filters` property is serialized to JSON as a *comma-separated* string
+containing the type(s) of messages interested in receiving:
 
-|Filter      |Message Type                       |
-|:----------:|:----------------------------------|
-|`None`      |Nothing                            |
-|`Status`    |[Controller status](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#controllerstatusmessage)|
-|`Cycle`     |[Cycle data](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#cycledatamessage)|
-|`Mold`      |[Mold settings](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#molddatamessage)|
-|`Actions`   |[Current action](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#controlleractionmessage)|
-|`Alarms`    |[Controller alarms](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#controllerstatusmessage)|
-|`Audit`     |[Audit trail](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#controllerstatusmessage)|
-|`All`       |Admin authority|
-|`JobCards`  |[Job card-related messages](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#requestjobcardslistmessage)|
-|`Operators` |[Operator-related messages](http://cloud.chenhsong.com/ichen/doc/messages_reference.html#loginoperatormessage)|
+|Filter      |Message Type                       |Message Class(es) Affected|
+|:----------:|:----------------------------------|:-----------------------:|
+|`None`      |Nothing                            |*N/A*                    |
+|`Status`    |Controller status and variables    |[`ControllerStatusMessage`](#controllerstatusmessage)|
+|`Cycle`     |Cycle data                         |[`CycleDataMessage`](#cycledatamessage)|
+|`Mold`      |Mold settings                      |[`MoldDataMessage`](#molddatamessage)|
+|`Actions`   |Current action                     |[`ControllerActionMessage`](#controlleractionmessage)|
+|`Alarms`    |Controller alarms                  |[`ControllerStatusMessage`](#controllerstatusmessage)|
+|`Audit`     |Audit trail of setting changes     |[`ControllerStatusMessage`](#controllerstatusmessage)|
+|`All`       |All message types                  |All message classes above|
+|`JobCards`  |Job card-related messages          |[`RequestJobCardsListMessage`](#requestjobcardslistmessage), [`JobCardsListMessage`](#jobcardslistmessage)|
+|`Operators` |Operator-related messages          |[`LoginOperatorMessage`](#loginoperatormessage), [`OperatorInfoMessage`](#operatorinfomessage)|
+|`OPCUA`     |OPC UA communications              |*N/A*                    |
 
 ### Example
 
