@@ -1,16 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using iChen.OpenProtocol;
+using iChen.Persistence.Server;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.Rewrite;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace iChen.Web
 {
-	public static class Hosting
+	public static partial class Hosting
 	{
+		public const string SessionCookieName = "api_key";
+
 		#region Status class
 
 		public class Status
@@ -62,13 +80,63 @@ namespace iChen.Web
 
 		#endregion
 
+		#region MIME types for compression
+
+		private static readonly IEnumerable<string> CompressMimeTypes = new[]
+		{
+			// Text files
+			"text/plain",
+			"text/csv",
+			"text/html",
+			"text/css",
+			"application/javascript",
+			"application/x-javascript",
+			"text/javascript",
+
+			// Fonts
+			"font/truetype",
+			"font/opentype",
+			"font/woff",
+			"font/woff2",
+			"font/eot",
+			"application/octet-stream",
+			"application/x-font-truetype",
+			"application/x-font-opentype",
+			"application/font-woff",
+			"application/font-woff2",
+			"application/vnd.ms-fontobject",
+			"application/font-sfnt",
+			"image/svg+xml",
+			"application/atom+xml",
+
+			// Excel spreadsheets
+			"application/vnd.ms-excel",
+			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+		};
+
+		#endregion
+
 		public static readonly Status CurrentStatus = new Status();
 
 		// Web host
 		private static IWebHost m_Host = null;
 
-		public static IWebHost CreateWebHost (string DebugLevel, string DatabaseSchema = null, ushort DatabaseVersion = 1, string HttpsCertificateFile = null, string HttpsCertificateHash = null, ushort Port = 5757, string WwwRoot = @"./www", string TerminalConfigFile = @"./www/terminal/config.js", string LogsPath = @"./logs", int SessionTimeOut = 15)
+		private static IWebHost CreateWebHost (
+																CustomConfiguration Configure
+																, string DatabaseSchema
+																, ushort DatabaseVersion
+																, string HttpsCertificateFile
+																, string HttpsCertificateHash
+																, ushort HttpRedirectionPort
+																, ushort Port
+																, string WwwRoot
+																, string TerminalConfigFile
+																, string LogsPath
+																, uint SessionTimeOut
+		)
 		{
+			// Set parameters
+
 			var basedir = AppDomain.CurrentDomain.BaseDirectory;
 			if (!Path.IsPathRooted(WwwRoot)) WwwRoot = (new Uri(Path.Combine(basedir, WwwRoot))).LocalPath;
 			if (!Path.IsPathRooted(LogsPath)) LogsPath = (new Uri(Path.Combine(basedir, LogsPath))).LocalPath;
@@ -80,102 +148,137 @@ namespace iChen.Web
 			WebSettings.TerminalConfigFilePath = TerminalConfigFile;
 			LogController.LogsPath = LogsPath;
 			LogController.LogsStorageAccount = LogController.LogsStorageKey = null;
-			if (SessionTimeOut > 0) Sessions.TimeOut = SessionTimeOut * 60 * 1000;
 
-			var https = !string.IsNullOrWhiteSpace(HttpsCertificateFile) && !string.IsNullOrWhiteSpace(HttpsCertificateHash);
+			// Environment
 
-			if (https) Startup.UseHSTS = true;
+			var isDevelopment = false; ;
 
-			var builder = new WebHostBuilder()
-												.UseKestrel(options => options.ListenAnyIP(Port, listen => {
-													if (https) listen.UseHttps(HttpsCertificateFile.Trim(), HttpsCertificateHash.Trim());
-												}))
-												.UseWebRoot(WebSettings.WwwRootPath)
-												//.UseSetting("https_port", "5758")			// HTTPS redirection port
-												.UseStartup<Startup>();
+			// HTTPS
 
-			switch (DebugLevel.ToUpperInvariant()) {
-				case "TRACE": WebSettings.LoggerLevel = LogLevel.Trace; break;
-				case "DEBUG": WebSettings.LoggerLevel = LogLevel.Debug; break;
-				case "INFO": WebSettings.LoggerLevel = LogLevel.Information; break;
-				case "WARN": WebSettings.LoggerLevel = LogLevel.Warning; break;
-				case "ERROR": WebSettings.LoggerLevel = LogLevel.Error; break;
-				case "FATAL": WebSettings.LoggerLevel = LogLevel.Critical; break;
-				case "NONE": WebSettings.LoggerLevel = LogLevel.None; break;
-				default: throw new ArgumentOutOfRangeException(nameof(DebugLevel), $"Invalid debug level: [{DebugLevel}].");
+			var useHttps = !string.IsNullOrWhiteSpace(HttpsCertificateFile) && !string.IsNullOrWhiteSpace(HttpsCertificateHash);
+			var useHsts = useHttps;
+			var useHttpRedirection = false;
+
+			// Create Kestrel
+
+			var builder = WebHost.CreateDefaultBuilder()
+												.ConfigureAppConfiguration((context, _) => isDevelopment = context.HostingEnvironment.IsDevelopment())
+												.UseKestrel(options => {
+													if (useHttps) {
+														options.ListenAnyIP(Port, listen => {
+															listen.Protocols = HttpProtocols.Http1AndHttp2;
+															listen.UseHttps(HttpsCertificateFile.Trim(), HttpsCertificateHash.Trim());
+														});
+														if (HttpRedirectionPort > 0) options.ListenAnyIP(HttpRedirectionPort);
+													} else {
+														options.ListenAnyIP(Port);
+													}
+												})
+												.UseWebRoot(WwwRoot);
+
+			if (useHttps && HttpRedirectionPort > 0) {
+				builder.UseSetting("https_port", Port.ToString());      // HTTPS redirection port
+				useHttpRedirection = true;
 			}
 
-			if (WebSettings.LoggerLevel != LogLevel.None) {
-				builder = builder.ConfigureLogging(logging => {
-					logging.SetMinimumLevel(WebSettings.LoggerLevel);
+			// Configure default logging
+			builder.ConfigureLogging((ILoggingBuilder logging) => {
+				logging.ClearProviders();
+
+				if (Configure == null) {
+					logging.SetMinimumLevel(WebSettings.DefaultLoggingLevel);
 					logging.AddConsole();
+				}
+			});
+
+			// Configure services
+
+			builder.ConfigureServices((IServiceCollection services) => {
+				services.AddDbContext<ConfigDB>();
+
+				services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(opt => {
+					opt.Cookie.Name = SessionCookieName;
+					opt.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+					opt.ExpireTimeSpan = TimeSpan.FromMilliseconds(SessionTimeOut * 60 * 1000);
+					opt.SlidingExpiration = true;
+
+					//SessionController.SessionsCache = new SessionStore(new MemoryCache(new MemoryCacheOptions()));
+					//opt.SessionStore = SessionController.SessionsCache;
+
+					opt.Events.OnRedirectToLogin = context => {
+						context.Response.StatusCode = 401;
+						return Task.CompletedTask;
+					};
 				});
-			}
+
+				services.AddResponseCompression(opt => {
+					opt.EnableForHttps = true;
+
+					// Brotli compression is only implemented in .NET Core
+					if (Utils.IsNetCore) opt.Providers.Add<BrotliCompressionProvider>();
+
+					opt.Providers.Add<GzipCompressionProvider>();
+					opt.MimeTypes = ResponseCompressionDefaults.MimeTypes.Union(CompressMimeTypes).ToList();
+				}).Configure<BrotliCompressionProviderOptions>(opt => {
+					opt.Level = CompressionLevel.Optimal;
+				}).Configure<GzipCompressionProviderOptions>(opt => {
+					opt.Level = CompressionLevel.Optimal;
+				});
+
+				services.AddMvc(opt => {
+					var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+					opt.Filters.Add(new AuthorizeFilter(policy));
+				}).AddJsonOptions(options => {
+					// Output formatters
+					options.SerializerSettings.ContractResolver = new JsonSerializationContractResolver();
+					options.SerializerSettings.DefaultValueHandling = DefaultValueHandling.Ignore;
+					//options.SerializerSettings.DateFormatString = "yyyy-MM-ddTHH:mm:sszzz";
+					options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
+					options.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
+					options.SerializerSettings.DateFormatHandling = DateFormatHandling.IsoDateFormat;
+					options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
+					options.SerializerSettings.Formatting = Formatting.None;
+					options.SerializerSettings.TypeNameHandling = TypeNameHandling.None;
+					options.SerializerSettings.Converters.Add(new StringEnumConverter());
+				});
+			});
+
+			// Configure Pipeline
+
+			builder.Configure(app => {
+				var loggerFactory = app.ApplicationServices.GetRequiredService<ILoggerFactory>();
+
+				if (Configure != null) Configure(app, loggerFactory);
+
+				app.UseMiddleware<ExceptionCatchMiddleware>();
+
+				if (isDevelopment) app.UseDeveloperExceptionPage();
+
+				if (useHsts) app.UseHsts();
+				if (useHttpRedirection) app.UseHttpsRedirection();
+
+				app.UseResponseCompression();
+
+				// Rewrite all URL's which is not referring to an actual file (i.e. with an extension
+				// to the index.html page under the webapp
+				app.UseRewriter(new RewriteOptions()
+					.AddRewrite($"^{WebSettings.Route_Config}/(.*)$", $"{WebSettings.Route_Config}/$1", true)
+					.AddRewrite($"^{WebSettings.Route_Logs}/(.*)$", $"{WebSettings.Route_Logs}/$1", true)
+					.AddRewrite(@"^(\w+)/[^\.\/]+$", "$1/index.html", false)
+				);
+
+				app.UseDefaultFiles();
+
+				app.UseStaticFiles();
+
+				app.UseAuthentication();
+
+				app.UseMvc();
+			});
+
+			// Build the web host
 
 			return builder.Build();
-		}
-
-		public static void RunWebHost (
-													string DebugLevel
-													, string DatabaseSchema = null
-													, ushort DatabaseVersion = 1
-													, string HttpsCertificateFile = null
-													, string HttpsCertificateHash = null
-													, ushort Port = 5757
-													, string WwwRoot = @"./www"
-													, string TerminalConfigFile = @"./www/terminal/config.js"
-													, string LogsPath = @"./logs"
-													, int SessionTimeOut = 15
-		)
-		{
-			if (m_Host != null) throw new ApplicationException("Web host is already started.");
-
-			if (DatabaseSchema != null && string.IsNullOrWhiteSpace(DatabaseSchema)) throw new ArgumentNullException(nameof(DatabaseSchema));
-			if (DatabaseVersion <= 0) throw new ArgumentOutOfRangeException(nameof(DatabaseVersion));
-			if (string.IsNullOrWhiteSpace(DebugLevel)) throw new ArgumentOutOfRangeException(nameof(DebugLevel));
-			if (string.IsNullOrWhiteSpace(WwwRoot)) throw new ArgumentOutOfRangeException(nameof(WwwRoot));
-			if (string.IsNullOrWhiteSpace(TerminalConfigFile)) throw new ArgumentOutOfRangeException(nameof(TerminalConfigFile));
-			if (string.IsNullOrWhiteSpace(LogsPath)) throw new ArgumentOutOfRangeException(nameof(LogsPath));
-			if (!string.IsNullOrWhiteSpace(HttpsCertificateFile) && string.IsNullOrWhiteSpace(HttpsCertificateHash)) throw new ArgumentNullException(nameof(HttpsCertificateHash));
-
-			m_Host = CreateWebHost(DebugLevel, DatabaseSchema, DatabaseVersion, HttpsCertificateFile, HttpsCertificateHash, Port, WwwRoot, TerminalConfigFile, LogsPath, SessionTimeOut);
-
-			m_Host.Start();
-		}
-
-		public static void RunAzureWebHost (
-													string DebugLevel
-													, string StorageAccount
-													, string StorageKey
-													, string DatabaseSchema = null
-													, ushort DatabaseVersion = 1
-													, string HttpsCertificateFile = null
-													, string HttpsCertificateHash = null
-													, ushort Port = 5757
-													, string WwwRoot = @"./www"
-													, string TerminalConfigFile = @"./www/terminal/config.js"
-													, int SessionTimeOut = 15
-		)
-		{
-			if (string.IsNullOrWhiteSpace(StorageAccount)) throw new ArgumentOutOfRangeException(nameof(StorageAccount));
-			if (string.IsNullOrWhiteSpace(StorageKey)) throw new ArgumentOutOfRangeException(nameof(StorageKey));
-			if (!string.IsNullOrWhiteSpace(HttpsCertificateFile) && string.IsNullOrWhiteSpace(HttpsCertificateHash)) throw new ArgumentNullException(nameof(HttpsCertificateHash));
-
-			m_Host = CreateWebHost(DebugLevel, DatabaseSchema, DatabaseVersion, HttpsCertificateFile, HttpsCertificateHash, Port, WwwRoot, TerminalConfigFile, "NO_LOGS_PATH", SessionTimeOut);
-
-			LogController.LogsStorageAccount = StorageAccount.Trim();
-			LogController.LogsStorageKey = StorageKey.Trim();
-			LogController.LogsPath = null;
-
-			m_Host.Start();
-		}
-
-		public static void StopWebHost ()
-		{
-			if (m_Host == null) throw new ApplicationException("Web host is not yet started.");
-
-			m_Host.Dispose();
-			m_Host = null;
 		}
 	}
 }

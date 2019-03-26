@@ -9,9 +9,7 @@ namespace iChen.Web
 		[HttpGet("status")]
 		public IActionResult GetStatus ()
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-
-			var orgPrefix = orgId + ":";
+			var orgPrefix = HttpContext.GetOrg() + ":";
 
 			lock (Hosting.CurrentStatus) {
 				var status = new Hosting.Status()
@@ -37,6 +35,6 @@ namespace iChen.Web
 		}
 
 		[HttpGet("test")]
-		public IActionResult Test () => Ok($"[ASP.NET Web API] Time now is {DateTime.Now.ToString("d/M/yyyy h:mm:ss tt")}. User = {Sessions.GetCurrentUser(Request)?.ID ?? 0}.");
+		public IActionResult Test () => Ok($"[ASP.NET Web API] Time now is {DateTime.Now.ToString("d/M/yyyy h:mm:ss tt")}. User = {HttpContext.User?.Identity.Name ?? "None"}.");
 	}
 }

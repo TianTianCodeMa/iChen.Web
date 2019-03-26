@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using iChen.Analytics;
 using iChen.OpenProtocol;
 using iChen.Persistence.Cloud;
+using iChen.Persistence.Server;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
@@ -18,29 +20,27 @@ namespace iChen.Web.Analytics
 	{
 		[HttpGet]
 		[Route("cycledata/{controllerId}")]
+		[Authorize(Roles = nameof(Filters.Cycle))]
 		public async Task<IActionResult> GetCycleDataAsync (uint controllerId, DateTimeOffset? from = null, DateTimeOffset? to = null, string sort = "time", DataFileFormats format = DataFileFormats.JSON, double timezone = 0.0)
-		{
-			if (!Sessions.IsAuthorized(Request, out var orgId, Filters.Cycle)) return Unauthorized();
-
-			return await WebDataDownloadAsync<CycleDataX>(Storage.CycleDataTable, "Cycle Data", orgId, controllerId, from, to, Utils.GetSorting(sort), null, format, timezone);
-		}
+			=> await WebDataDownloadAsync<CycleDataX>(Storage.CycleDataTable, "Cycle Data", HttpContext.GetOrg(), controllerId, from, to, Utils.GetSorting(sort), null, format, timezone);
 
 		[HttpGet]
 		[Route("cycledata/{controllerId}/{variable}")]
+		[Authorize(Roles = nameof(Filters.Cycle))]
 		public async Task<IActionResult> GetCycleDataVariableAsync (uint controllerId, string variable, DateTimeOffset? from = null, DateTimeOffset? to = null, DataFileFormats format = DataFileFormats.JSON, double timezone = 0.0)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId, Filters.Cycle)) return Unauthorized();
-
 			if (string.IsNullOrWhiteSpace(variable)) return BadRequest($"Invalid variable name: {variable}");
 
 			IEnumerable<CycleDataX> result;
 
 			try {
-				Utils.ProcessDateTimeRange(ref from, ref to);
+				(from, to) = Utils.ProcessDateTimeRange(from, to);
 
-				using (var ana = new AnalyticsEngine(db)) {
-					result = await ana.GetDataAsync<CycleDataX>(Storage.CycleDataTable, from.Value, to.Value, null, Sorting.ByTime, orgId, controllerId, variable);
-					if (result == null) return NotFound();
+				using (var db = new ConfigDB()) {
+					using (var ana = new AnalyticsEngine(db)) {
+						result = await ana.GetDataAsync<CycleDataX>(Storage.CycleDataTable, from.Value, to.Value, null, Sorting.ByTime, HttpContext.GetOrg(), controllerId, variable);
+						if (result == null) return NotFound();
+					}
 				}
 			} catch (ArgumentException ex) {
 				return BadRequest(ex.Message);

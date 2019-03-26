@@ -1,109 +1,85 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using iChen.OpenProtocol;
-using iChen.Persistence.Server;
+﻿using System;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.AspNetCore.Rewrite;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 
 namespace iChen.Web
 {
-	internal class Startup
+	public delegate void CustomConfiguration (IApplicationBuilder app, ILoggerFactory loggerFactory);
+
+	public static partial class Hosting
 	{
-		public static bool UseHSTS = false;
-
-		public Startup (IConfiguration configuration)
+		public static void RunWebHost (
+											CustomConfiguration Configure
+											, string DatabaseSchema = null
+											, ushort DatabaseVersion = 1
+											, string HttpsCertificateFile = null
+											, string HttpsCertificateHash = null
+											, ushort HttpRedirectionPort = 0
+											, ushort Port = 5757
+											, string WwwRoot = @"./www"
+											, string TerminalConfigFile = @"./www/terminal/config.js"
+											, string LogsPath = @"./logs"
+											, uint SessionTimeOut = 15
+)
 		{
-			Configuration = configuration;
+			if (m_Host != null) throw new ApplicationException("Web host is already started.");
+
+			if (DatabaseSchema != null && string.IsNullOrWhiteSpace(DatabaseSchema)) throw new ArgumentNullException(nameof(DatabaseSchema));
+			if (DatabaseVersion <= 0) throw new ArgumentOutOfRangeException(nameof(DatabaseVersion));
+			if (string.IsNullOrWhiteSpace(WwwRoot)) throw new ArgumentOutOfRangeException(nameof(WwwRoot));
+			if (string.IsNullOrWhiteSpace(TerminalConfigFile)) throw new ArgumentOutOfRangeException(nameof(TerminalConfigFile));
+			if (string.IsNullOrWhiteSpace(LogsPath)) throw new ArgumentOutOfRangeException(nameof(LogsPath));
+			if (Port <= 0) throw new ArgumentOutOfRangeException(nameof(Port));
+			if (SessionTimeOut <= 0) throw new ArgumentOutOfRangeException(nameof(SessionTimeOut));
+			if (!string.IsNullOrWhiteSpace(HttpsCertificateFile) && string.IsNullOrWhiteSpace(HttpsCertificateHash)) throw new ArgumentNullException(nameof(HttpsCertificateHash));
+
+			m_Host = CreateWebHost(Configure, DatabaseSchema, DatabaseVersion, HttpsCertificateFile, HttpsCertificateHash, HttpRedirectionPort, Port, WwwRoot, TerminalConfigFile, LogsPath, SessionTimeOut);
+
+			m_Host.Start();
 		}
 
-		public IConfiguration Configuration { get; }
-
-		private static readonly IEnumerable<string> CompressMimeTypes = new[]
+		public static void RunAzureWebHost (
+													CustomConfiguration Configure
+													, string StorageAccount
+													, string StorageKey
+													, string DatabaseSchema = null
+													, ushort DatabaseVersion = 1
+													, string HttpsCertificateFile = null
+													, string HttpsCertificateHash = null
+													, ushort HttpRedirectionPort = 0
+													, ushort Port = 5757
+													, string WwwRoot = @"./www"
+													, string TerminalConfigFile = @"./www/terminal/config.js"
+													, uint SessionTimeOut = 15
+		)
 		{
-			// Text files
-			"text/csv",
+			if (m_Host != null) throw new ApplicationException("Web host is already started.");
 
-			// Fonts
-			"font/truetype",
-			"font/opentype",
-			"font/woff",
-			"font/woff2",
-			"font/eot",
-			"application/octet-stream",
-			"application/x-font-truetype",
-			"application/x-font-opentype",
-			"application/font-woff",
-			"application/font-woff2",
-			"application/vnd.ms-fontobject",
-			"application/font-sfnt",
-			"image/svg+xml",
-			"application/atom+xml",
+			if (string.IsNullOrWhiteSpace(StorageAccount)) throw new ArgumentOutOfRangeException(nameof(StorageAccount));
+			if (string.IsNullOrWhiteSpace(StorageKey)) throw new ArgumentOutOfRangeException(nameof(StorageKey));
+			if (DatabaseSchema != null && string.IsNullOrWhiteSpace(DatabaseSchema)) throw new ArgumentNullException(nameof(DatabaseSchema));
+			if (DatabaseVersion <= 0) throw new ArgumentOutOfRangeException(nameof(DatabaseVersion));
+			if (Port <= 0) throw new ArgumentOutOfRangeException(nameof(Port));
+			if (SessionTimeOut <= 0) throw new ArgumentOutOfRangeException(nameof(SessionTimeOut));
+			if (string.IsNullOrWhiteSpace(WwwRoot)) throw new ArgumentOutOfRangeException(nameof(WwwRoot));
+			if (string.IsNullOrWhiteSpace(TerminalConfigFile)) throw new ArgumentOutOfRangeException(nameof(TerminalConfigFile));
+			if (!string.IsNullOrWhiteSpace(HttpsCertificateFile) && string.IsNullOrWhiteSpace(HttpsCertificateHash)) throw new ArgumentNullException(nameof(HttpsCertificateHash));
 
-			// Excel spreadsheets
-			"application/vnd.ms-excel",
-			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-		};
+			m_Host = CreateWebHost(Configure, DatabaseSchema, DatabaseVersion, HttpsCertificateFile, HttpsCertificateHash, HttpRedirectionPort, Port, WwwRoot, TerminalConfigFile, "NO_LOGS_PATH", SessionTimeOut);
 
-		// This method gets called by the runtime. Use this method to add services to the container.
-		public void ConfigureServices (IServiceCollection services)
-		{
-			services.AddDbContext<ConfigDB>();
+			LogController.LogsStorageAccount = StorageAccount.Trim();
+			LogController.LogsStorageKey = StorageKey.Trim();
+			LogController.LogsPath = null;
 
-			services.Configure<GzipCompressionProviderOptions>(opt =>
-				opt.Level = System.IO.Compression.CompressionLevel.Optimal);
-
-			services.AddResponseCompression(opt => {
-				opt.EnableForHttps = true;
-				opt.Providers.Add<GzipCompressionProvider>();
-				opt.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(CompressMimeTypes);
-			});
-
-			services.AddMvc().AddJsonOptions(options => {
-				// Output formatters
-				options.SerializerSettings.ContractResolver = new JsonSerializationContractResolver();
-				options.SerializerSettings.DefaultValueHandling = DefaultValueHandling.Ignore;
-				//options.SerializerSettings.DateFormatString = "yyyy-MM-ddTHH:mm:sszzz";
-				options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
-				options.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
-				options.SerializerSettings.DateFormatHandling = DateFormatHandling.IsoDateFormat;
-				options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
-				options.SerializerSettings.Formatting = Formatting.None;
-				options.SerializerSettings.TypeNameHandling = TypeNameHandling.None;
-				options.SerializerSettings.Converters.Add(new StringEnumConverter());
-			});
+			m_Host.Start();
 		}
 
-		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-		public void Configure (IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+		public static void StopWebHost ()
 		{
-			app.UseMiddleware<ExceptionCatchMiddleware>();
+			if (m_Host == null) throw new ApplicationException("Web host is not yet started.");
 
-			if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
-
-			if (UseHSTS) app.UseHsts();
-			//app.UseHttpsRedirection();
-			app.UseResponseCompression();
-
-			// Rewrite all URL's which is not referring to an actual file (i.e. with an extension
-			// to the index.html page under the webapp
-			app.UseRewriter(new RewriteOptions()
-				.AddRewrite($"^{WebSettings.Route_Config}/(.*)$", $"{WebSettings.Route_Config}/$1", true)
-				.AddRewrite($"^{WebSettings.Route_Logs}/(.*)$", $"{WebSettings.Route_Logs}/$1", true)
-				.AddRewrite(@"^(\w+)/[^\.\/]+$", "$1/index.html", false)
-			);
-
-			app.UseDefaultFiles();
-
-			app.UseStaticFiles();
-
-			app.UseMvc();
+			m_Host.Dispose();
+			m_Host = null;
 		}
 	}
 }

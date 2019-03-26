@@ -3,7 +3,9 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using iChen.OpenProtocol;
 using iChen.Persistence.Server;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Linq;
@@ -16,12 +18,10 @@ namespace iChen.Web
 		[HttpGet("terminal")]
 		public async Task<IActionResult> GetTerminalConfigFile (CancellationToken ct)
 		{
-			if (WebSettings.TerminalConfigFilePath == null) return BadRequest("No TerminalConfigFilePath specified.");
-
-			var _ = Sessions.IsAuthorized(Request, out var orgId);
+			if (string.IsNullOrWhiteSpace(WebSettings.TerminalConfigFilePath)) return BadRequest("No TerminalConfigFilePath specified.");
 
 			if (!System.IO.File.Exists(WebSettings.TerminalConfigFilePath) && WebSettings.DatabaseVersion > 1) {
-				return await GetTerminalConfig(orgId, ct).ConfigureAwait(false);
+				return await GetTerminalConfig(HttpContext.GetOrg(), ct).ConfigureAwait(false);
 			}
 
 			string text;
@@ -42,27 +42,25 @@ namespace iChen.Web
 		[HttpGet("terminal/{orgId}")]
 		public async Task<IActionResult> GetTerminalConfig (string orgId, CancellationToken ct)
 		{
-			var _ = Sessions.IsAuthorized(Request, out var sessionOrgId);
-			if (!sessionOrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase)) return Unauthorized();
+			if (!HttpContext.GetOrg().Equals(orgId, StringComparison.OrdinalIgnoreCase)) return StatusCode(403);
 
-			if (string.IsNullOrWhiteSpace(orgId)) throw new ArgumentNullException(nameof(orgId));
+			using (var db = new ConfigDB()) {
+				var config = await db.TerminalConfigs.SingleOrDefaultAsync(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase), ct).ConfigureAwait(false);
+				if (config == null) return NotFound();
 
-			var config = await db.TerminalConfigs.SingleOrDefaultAsync(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase), ct).ConfigureAwait(false);
-			if (config == null) return NotFound();
-
-			return Content(config.Text);
+				return Content(config.Text);
+			}
 		}
 
 		// http://url/config/terminal
 		[HttpPost("terminal")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> UpdateTerminalConfigFile ([FromBody] JToken json, CancellationToken ct)
 		{
-			if (WebSettings.TerminalConfigFilePath == null) throw new ApplicationException("No TerminalConfigFilePath specified.");
-
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			if (string.IsNullOrWhiteSpace(WebSettings.TerminalConfigFilePath)) return BadRequest("No TerminalConfigFilePath specified.");
 
 			if (!System.IO.File.Exists(WebSettings.TerminalConfigFilePath) && WebSettings.DatabaseVersion > 1) {
-				await UpdateTerminalConfig(orgId, json, ct).ConfigureAwait(false);
+				await UpdateTerminalConfig(HttpContext.GetOrg(), json, ct).ConfigureAwait(false);
 				return NoContent();
 			}
 
@@ -77,19 +75,20 @@ namespace iChen.Web
 
 		// http://url/config/terminal/{org}
 		[HttpPost("terminal/{orgId}")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> UpdateTerminalConfig (string orgId, [FromBody] JToken json, CancellationToken ct)
 		{
-			if (!Sessions.IsAuthorized(Request, out _)) return Unauthorized();
+			using (var db = new ConfigDB()) {
+				var config = await db.TerminalConfigs.SingleOrDefaultAsync(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase), ct).ConfigureAwait(false);
+				if (config == null) return NotFound();
 
-			var config = await db.TerminalConfigs.SingleOrDefaultAsync(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase), ct).ConfigureAwait(false);
-			if (config == null) return NotFound();
+				config.Text = json.ToString();
+				config.Modified = DateTime.Now;
 
-			config.Text = json.ToString();
-			config.Modified = DateTime.Now;
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-			return NoContent();
+				return NoContent();
+			}
 		}
 	}
 
@@ -101,14 +100,15 @@ namespace iChen.Web
 		public async Task<IActionResult> GetTerminalConfigFile (string orgScript, CancellationToken ct)
 		{
 			if (orgScript.EndsWith(".js", StringComparison.OrdinalIgnoreCase)) orgScript = orgScript.Substring(0, orgScript.Length - 3);
-			if (string.IsNullOrWhiteSpace(orgScript)) throw new ArgumentNullException(nameof(orgScript));
+			if (string.IsNullOrWhiteSpace(orgScript)) return BadRequest($"Invalid script name: {orgScript}");
 
-			if (WebSettings.TerminalConfigFilePath == null) throw new ApplicationException("No Utils.TerminalConfigFilePath specified.");
+			if (string.IsNullOrWhiteSpace(WebSettings.TerminalConfigFilePath)) return BadRequest("No TerminalConfigFilePath specified.");
 
 			var filepath = Path.Combine(WebSettings.WwwRootPath, TerminalConfigRoute) + orgScript + ".js";
 
 			if (filepath.Equals(WebSettings.TerminalConfigFilePath, StringComparison.OrdinalIgnoreCase) &&
 					System.IO.File.Exists(WebSettings.TerminalConfigFilePath)) {
+
 				using (var stream = System.IO.File.OpenText(WebSettings.TerminalConfigFilePath)) {
 					var script = await stream.ReadToEndAsync().ConfigureAwait(false);
 					return Content(script, "application/javascript", Encoding.UTF8);

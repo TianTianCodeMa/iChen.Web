@@ -3,6 +3,8 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using iChen.Persistence.Server;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -113,14 +115,16 @@ namespace iChen.Web
 		[HttpGet("controllers")]
 		public async Task<IActionResult> GetControllersAsync (CancellationToken ct)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId, OpenProtocol.Filters.None)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			return Ok((await db.Controllers.AsNoTracking()
-											.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
-											.ToListAsync(ct)
-											.ConfigureAwait(false)
-											).Select(c => new ControllerX(c))
-											.ToDictionary(c => c.ID));
+			using (var db = new ConfigDB()) {
+				return Ok((await db.Controllers.AsNoTracking()
+												.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
+												.ToListAsync(ct)
+												.ConfigureAwait(false)
+												).Select(c => new ControllerX(c))
+												.ToDictionary(c => c.ID));
+			}
 		}
 
 		// http://url/config/controllers/{id}
@@ -129,16 +133,18 @@ namespace iChen.Web
 		{
 			if (id <= 0) return NotFound();
 
-			if (!Sessions.IsAuthorized(Request, out var orgId, OpenProtocol.Filters.None)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var controller = await db.Controllers.AsNoTracking()
+			using (var db = new ConfigDB()) {
+				var controller = await db.Controllers.AsNoTracking()
 																.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 																.SingleOrDefaultAsync(c => c.ID == id, ct)
 																.ConfigureAwait(false);
 
-			if (controller == null) return NotFound();
+				if (controller == null) return NotFound();
 
-			return Ok(new ControllerX(controller));
+				return Ok(new ControllerX(controller));
+			}
 		}
 
 		// http://url/config/controllers/{id}/molds
@@ -147,46 +153,52 @@ namespace iChen.Web
 		{
 			if (id <= 0) return NotFound();
 
-			if (!Sessions.IsAuthorized(Request, out var orgId, OpenProtocol.Filters.Mold)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var ctrl = await db.Controllers.AsNoTracking().Include(c => c.Molds)
+			using (var db = new ConfigDB()) {
+				var ctrl = await db.Controllers.AsNoTracking().Include(c => c.Molds)
 													.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 													.SingleOrDefaultAsync(c => c.ID == id, ct)
 													.ConfigureAwait(false);
 
-			if (ctrl == null) return NotFound();
+				if (ctrl == null) return NotFound();
 
-			return Ok(ctrl.Molds.Select(x => new MoldX(x)).ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase));
+				return Ok(ctrl.Molds.Select(x => new MoldX(x)).ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase));
+			}
 		}
 
 		// http://url/config/controllers/{id}/molds/{moldId}
 		[HttpGet("controllers/{id}/molds/{moldId}")]
+		[Authorize(Roles = nameof(OpenProtocol.Filters.Mold))]
 		public async Task<IActionResult> GetControllerMoldAsync (int id, string moldId, CancellationToken ct)
 		{
 			if (id <= 0) return NotFound();
 			if (string.IsNullOrWhiteSpace(moldId)) return NotFound();
 
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var ctrl = await db.Controllers.AsNoTracking().Include(c => c.Molds)
+			using (var db = new ConfigDB()) {
+				var ctrl = await db.Controllers.AsNoTracking().Include(c => c.Molds)
 													.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 													.SingleOrDefaultAsync(c => c.ID == id, ct)
 													.ConfigureAwait(false);
 
-			if (ctrl == null) return NotFound();
+				if (ctrl == null) return NotFound();
 
-			var mx = await db.Molds.AsNoTracking().Include(m => m.MoldSettings)
-												.Where(m => m.ControllerId == id)
-												.SingleOrDefaultAsync(x => x.Name.Equals(moldId, StringComparison.OrdinalIgnoreCase), ct)
-												.ConfigureAwait(false);
+				var mx = await db.Molds.AsNoTracking().Include(m => m.MoldSettings)
+													.Where(m => m.ControllerId == id)
+													.SingleOrDefaultAsync(x => x.Name.Equals(moldId, StringComparison.OrdinalIgnoreCase), ct)
+													.ConfigureAwait(false);
 
-			if (mx == null) return NotFound();
+				if (mx == null) return NotFound();
 
-			return Ok(new MoldX(mx));
+				return Ok(new MoldX(mx));
+			}
 		}
 
 		// http://url/config/controllers - Add
 		[HttpPost("controllers")]
+		[Authorize(Roles = nameof(OpenProtocol.Filters.All))]
 		public async Task<IActionResult> AddControllerAsync ([FromBody] ControllerX controller, CancellationToken ct)
 		{
 			if (string.IsNullOrWhiteSpace(controller.Name)) return BadRequest($"Invalid controller name: [{controller.Name}].");
@@ -213,28 +225,29 @@ namespace iChen.Web
 
 			if (!IPorSerialPortRegex.IsMatch(controller.IP)) return BadRequest($"Invalid IP address: [{controller.IP}].");
 
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-
-			controller.OrgId = orgId;
+			controller.OrgId = HttpContext.GetOrg();
 			controller.Modified = null;
 
-			var cx = await db.Controllers
+			using (var db = new ConfigDB()) {
+				var cx = await db.Controllers
 												.SingleOrDefaultAsync(c => c.ID == controller.ID, ct)
 												.ConfigureAwait(false);
-			if (cx != null) {
-				if (cx.OrgId.Equals(controller.OrgId, StringComparison.OrdinalIgnoreCase)) return BadRequest($"Controller ID [{controller.ID}] already exists.");
-				return BadRequest($"Invalid controller ID [{controller.ID}].");
+				if (cx != null) {
+					if (cx.OrgId.Equals(controller.OrgId, StringComparison.OrdinalIgnoreCase)) return BadRequest($"Controller ID [{controller.ID}] already exists.");
+					return BadRequest($"Invalid controller ID [{controller.ID}].");
+				}
+
+				cx = controller.GetBase();
+				db.Controllers.Add(cx);
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+				return Created($"controllers/{cx.ID}", new ControllerX(cx));
 			}
-
-			cx = controller.GetBase();
-			db.Controllers.Add(cx);
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-			return Created($"controllers/{cx.ID}", new ControllerX(cx));
 		}
 
 		// http://url/config/controllers/{id} - Update
 		[HttpPost("controllers/{id}")]
+		[Authorize(Roles = nameof(OpenProtocol.Filters.All))]
 		public async Task<IActionResult> UpdateControllerAsync (int id, [FromBody] ControllerX delta, CancellationToken ct)
 		{
 			if (id <= 0) return NotFound();
@@ -273,48 +286,53 @@ namespace iChen.Web
 				if (!IPorSerialPortRegex.IsMatch(delta.IP)) return BadRequest($"Invalid IP address: [{delta.IP}].");
 			}
 
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var controller = await db.Controllers
+			using (var db = new ConfigDB()) {
+				var controller = await db.Controllers
 																.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 																.SingleOrDefaultAsync(c => c.ID == id, ct)
 																.ConfigureAwait(false);
 
-			if (controller == null) return NotFound();
+				if (controller == null) return NotFound();
 
-			if (delta.m_IsEnabled.HasValue) controller.IsEnabled = delta.IsEnabled.Value;
-			if (delta.Name != null) controller.Name = delta.Name;
-			if (!string.IsNullOrWhiteSpace(delta.m_ControllerTypeText)) controller.Type = delta.BaseControllerType;
-			if (delta.Version != null) controller.Version = delta.Version;
-			if (delta.Model != null) controller.Model = delta.Model;
-			if (delta.IP != null) controller.IP = delta.IP;
+				if (delta.m_IsEnabled.HasValue) controller.IsEnabled = delta.IsEnabled.Value;
+				if (delta.Name != null) controller.Name = delta.Name;
+				if (!string.IsNullOrWhiteSpace(delta.m_ControllerTypeText)) controller.Type = delta.BaseControllerType;
+				if (delta.Version != null) controller.Version = delta.Version;
+				if (delta.Model != null) controller.Model = delta.Model;
+				if (delta.IP != null) controller.IP = delta.IP;
 
-			delta.Modified = DateTime.Now;
+				delta.Modified = DateTime.Now;
 
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-			return Ok(new ControllerX(controller));
+				return Ok(new ControllerX(controller));
+			}
 		}
 
 		// http://url/config/controllers/{id}
 		[HttpDelete("controllers/{id}")]
+		[Authorize(Roles = nameof(OpenProtocol.Filters.All))]
 		public async Task<IActionResult> DeleteControllerAsync (int id, CancellationToken ct)
 		{
 			if (id <= 0) return NotFound();
 
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var controller = await db.Controllers
+			using (var db = new ConfigDB()) {
+				var controller = await db.Controllers
 																.Where(c => c.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 																.SingleOrDefaultAsync(c => c.ID == id, ct)
 																.ConfigureAwait(false);
 
-			if (controller == null) return NotFound();
+				if (controller == null) return NotFound();
 
-			db.Controllers.Remove(controller);
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
+				db.Controllers.Remove(controller);
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-			return Ok(new ControllerX(controller));
+				return Ok(new ControllerX(controller));
+			}
 		}
 	}
 }

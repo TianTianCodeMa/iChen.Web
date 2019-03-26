@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Data.Odbc;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Security.Claims;
 using iChen.Analytics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -11,9 +15,10 @@ namespace iChen.Web
 		JSON, CSV, TSV, XLS, XLSX
 	}
 
-	internal static class WebSettings
+	public static class WebSettings
 	{
-		public static LogLevel LoggerLevel = LogLevel.Warning;
+		public static LogLevel DefaultLoggingLevel = LogLevel.Warning;
+
 		public static string DatabaseSchema = null;
 		public static ushort DatabaseVersion = 1;
 		public static string WwwRootPath = @".\www\";
@@ -26,12 +31,18 @@ namespace iChen.Web
 
 	internal static class Utils
 	{
-		public static void ProcessDateTimeRange (ref DateTimeOffset? from, ref DateTimeOffset? to)
+		public static bool IsNetCore { get; } = RuntimeInformation.FrameworkDescription.StartsWith(".NET Core", StringComparison.OrdinalIgnoreCase);
+		public static bool IsNetFramework { get; } = RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.OrdinalIgnoreCase);
+		public static bool IsNetNative { get; } = RuntimeInformation.FrameworkDescription.StartsWith(".NET Native", StringComparison.OrdinalIgnoreCase);
+
+		public static (DateTimeOffset from, DateTimeOffset to) ProcessDateTimeRange (DateTimeOffset? from, DateTimeOffset? to)
 		{
 			// Default to MTD
 			if (!to.HasValue) to = DateTimeOffset.Now;
 			if (!from.HasValue) from = new DateTimeOffset(to.Value.Year, to.Value.Month, 1, 0, 0, 0, to.Value.Offset);
 			if (from.Value > to.Value) throw new ArgumentOutOfRangeException("Start date must not be later than the end date.");
+
+			return (from.Value, to.Value);
 		}
 
 		public static Sorting GetSorting (string sort)
@@ -44,6 +55,9 @@ namespace iChen.Web
 				default: return Sorting.None;
 			}
 		}
+
+		public static string GetOrg (this HttpContext context)
+			=> context.User.Claims.FirstOrDefault(claim => claim.Type == ClaimTypes.UserData)?.Value;
 	}
 }
 

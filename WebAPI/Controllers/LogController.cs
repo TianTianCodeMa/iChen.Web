@@ -7,8 +7,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using iChen.OpenProtocol;
 using iChen.Persistence.Cloud;
 using iChen.Persistence.Server;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
@@ -131,11 +133,9 @@ namespace iChen.Web
 		}
 
 		[HttpGet]
-		public async Task<IActionResult> GetLogFilesList (int days = LogsStorageDaysInterval)
+		[Authorize(Roles = nameof(Filters.All) + ", Org_" + DataStore.DefaultOrgId)]
+		public IActionResult GetLogFilesList (int days = LogsStorageDaysInterval)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-			if (orgId != DataStore.DefaultOrgId) return Unauthorized();
-
 			var now = DateTime.Now.Date;
 			var start = now.AddDays(-days);
 
@@ -168,7 +168,7 @@ namespace iChen.Web
 		}
 
 		[HttpGet("list")]
-		public async Task<IActionResult> GetLogFilesList2 (int days = LogsStorageDaysInterval) => await GetLogFilesList(days);
+		public IActionResult GetLogFilesList2 (int days = LogsStorageDaysInterval) => GetLogFilesList(days);
 
 		private static string BuildCSVFile (string[] headers, IEnumerable<LogEntry> data, string delimiter = ",", bool quoted = true)
 		{
@@ -208,11 +208,9 @@ namespace iChen.Web
 		}
 
 		[HttpGet("{date}")]
+		[Authorize(Roles = nameof(Filters.All) + ", Org_" + DataStore.DefaultOrgId)]
 		public async Task<IActionResult> GetLogFileLines (string date, CancellationToken ct, string level = null, [Bind(Prefix = "class")] string classname = null, DataFileFormats format = DataFileFormats.JSON)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-			if (orgId != DataStore.DefaultOrgId) return Unauthorized();
-
 			if (!string.IsNullOrWhiteSpace(classname)) classname = classname.Trim();
 			var fullclassnames = RemoveClassPrefixList.Select(prefix => prefix + classname).ToList();
 
@@ -349,11 +347,9 @@ namespace iChen.Web
 		}
 
 		[HttpGet("{date}/info")]
+		[Authorize(Roles = nameof(Filters.All) + ", Org_" + DataStore.DefaultOrgId)]
 		public async Task<IActionResult> GetLogFileInfo (string date, CancellationToken ct)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-			if (orgId != DataStore.DefaultOrgId) return Unauthorized();
-
 			if (UseAzureStorage) {
 				var cloud = ConnectToStorage();
 				var startdate = DateTime.Parse(date);
@@ -416,11 +412,9 @@ namespace iChen.Web
 		}
 
 		[HttpGet("test")]
+		[Authorize(Roles = nameof(Filters.All) + ", Org_" + DataStore.DefaultOrgId)]
 		public IActionResult Test ()
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-			if (orgId != DataStore.DefaultOrgId) return Unauthorized();
-
 			return Ok(
 				UseLogFiles ? $"[ASP.NET Web API] Time now is {DateTime.Now.ToString("d/M/yyyy h:mm:ss tt")}. Log files path is [{LogsPath}]." :
 				UseAzureStorage ? $"[ASP.NET Web API] Time now is {DateTime.Now.ToString("d/M/yyyy h:mm:ss tt")}. Log files is at Azure storage account [{LogsStorageAccount}]." :
@@ -429,11 +423,9 @@ namespace iChen.Web
 		}
 
 		[HttpGet("testdb")]
+		[Authorize(Roles = nameof(Filters.All) + ", Org_" + DataStore.DefaultOrgId)]
 		public IActionResult TestDB ()
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
-			if (orgId != DataStore.DefaultOrgId) return Unauthorized();
-
 			var root = LogsPath;
 
 			return Ok(

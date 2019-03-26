@@ -17,21 +17,19 @@ namespace iChen.Web.Analytics
 	[Route(WebSettings.Route_Reports)]
 	public partial class ReportController : Microsoft.AspNetCore.Mvc.Controller
 	{
-		private readonly ConfigDB db;
-
-		public ReportController (ConfigDB context) : base() { this.db = context; }
-
 		public async Task<IActionResult> WebDataDownloadAsync<T> (string table, string title, string orgId, uint controllerId, DateTimeOffset? from = null, DateTimeOffset? to = null, Sorting sort = Sorting.ByTime, IPredicate<T> filter = null, DataFileFormats format = DataFileFormats.JSON, double timezone = 0.0)
 			where T : EntryBase, IDataFileFormatConverter
 		{
 			IEnumerable<T> data;
 
 			try {
-				Utils.ProcessDateTimeRange(ref from, ref to);
+				(from, to) = Utils.ProcessDateTimeRange(from, to);
 
-				using (var ana = new AnalyticsEngine(db)) {
-					data = await ana.GetDataAsync<T>(table, from.Value, to.Value, filter, sort, orgId, controllerId);
-					if (data == null) return NotFound();
+				using (var db = new ConfigDB()) {
+					using (var ana = new AnalyticsEngine(db)) {
+						data = await ana.GetDataAsync<T>(table, from.Value, to.Value, filter, sort, orgId, controllerId);
+						if (data == null) return NotFound();
+					}
 				}
 			} catch (ArgumentException ex) {
 				return BadRequest(ex.ToString());

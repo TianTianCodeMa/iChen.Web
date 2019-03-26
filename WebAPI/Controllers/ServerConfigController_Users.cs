@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using iChen.OpenProtocol;
 using iChen.Persistence.Server;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -97,38 +98,45 @@ namespace iChen.Web
 
 		// http://url/config/users
 		[HttpGet("users")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> GetUsersAsync (CancellationToken ct)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var ux = (await db.Users.AsNoTracking()
+			using (var db = new ConfigDB()) {
+				var ux = (await db.Users.AsNoTracking()
 												.Where(user => user.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 												.ToListAsync(ct)
 												.ConfigureAwait(false)
 												).Select(user => new UserX(user))
 												.ToList();
 
-			return Ok(ux);
+				return Ok(ux);
+			}
 		}
 
 		// http://url/config/users/{id}
 		[HttpGet("users/{id}")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> GetUserAsync (int id, CancellationToken ct)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var user = await db.Users.AsNoTracking()
+			using (var db = new ConfigDB()) {
+				var user = await db.Users.AsNoTracking()
 													.Where(x => x.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 													.SingleOrDefaultAsync(x => x.ID == id, ct)
 													.ConfigureAwait(false);
 
-			if (user == null) return NotFound();
+				if (user == null) return NotFound();
 
-			return Ok(new UserX(user));
+				return Ok(new UserX(user));
+			}
 		}
 
 		// http://url/config/users - Add
 		[HttpPost("users")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> AddUserAsync ([FromBody] UserX user, CancellationToken ct)
 		{
 			if (string.IsNullOrWhiteSpace(user.Password)) return BadRequest("Missing password.");
@@ -143,34 +151,37 @@ namespace iChen.Web
 
 			if (user.AccessLevel.Value > 10) return BadRequest($"Invalid access level (0-10): [{user.AccessLevel}].");
 
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
 			user.Modified = null;
 			user.OrgId = orgId;
 
-			var ux = await db.Users
+			using (var db = new ConfigDB()) {
+				var ux = await db.Users
 												.Where(x => x.OrgId.Equals(user.OrgId, StringComparison.OrdinalIgnoreCase))
 												.SingleOrDefaultAsync(x => x.Password.Equals(user.Password, StringComparison.OrdinalIgnoreCase), ct)
 												.ConfigureAwait(false);
 
-			if (ux != null) return BadRequest($"Password [{user.Password}] already exists.");
+				if (ux != null) return BadRequest($"Password [{user.Password}] already exists.");
 
-			ux = await db.Users
-										.Where(x => x.OrgId.Equals(user.OrgId, StringComparison.OrdinalIgnoreCase))
-										.SingleOrDefaultAsync(x => x.Name.Equals(user.Name, StringComparison.OrdinalIgnoreCase), ct)
-										.ConfigureAwait(false);
+				ux = await db.Users
+											.Where(x => x.OrgId.Equals(user.OrgId, StringComparison.OrdinalIgnoreCase))
+											.SingleOrDefaultAsync(x => x.Name.Equals(user.Name, StringComparison.OrdinalIgnoreCase), ct)
+											.ConfigureAwait(false);
 
-			if (ux != null) return BadRequest($"User name [{user.Name}] already exists.");
+				if (ux != null) return BadRequest($"User name [{user.Name}] already exists.");
 
-			ux = user.GetBase();
-			db.Users.Add(ux);
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
+				ux = user.GetBase();
+				db.Users.Add(ux);
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-			return Created($"users/{ux.ID}", new UserX(ux));
+				return Created($"users/{ux.ID}", new UserX(ux));
+			}
 		}
 
 		// http://url/config/users/{id} - Update
 		[HttpPost("users/{id}")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> UpdateUserAsync (int id, [FromBody] UserX delta, CancellationToken ct)
 		{
 			if (delta.Password != null) {
@@ -192,56 +203,61 @@ namespace iChen.Web
 				delta.BaseFilters = filter;
 			}
 
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var user = await db.Users
+			using (var db = new ConfigDB()) {
+				var user = await db.Users
 													.Where(x => x.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 													.SingleOrDefaultAsync(x => x.ID == id, ct)
 													.ConfigureAwait(false);
 
-			if (user == null) return NotFound();
+				if (user == null) return NotFound();
 
-			if (delta.m_IsEnabled.HasValue) user.IsEnabled = delta.IsEnabled.Value;
+				if (delta.m_IsEnabled.HasValue) user.IsEnabled = delta.IsEnabled.Value;
 
-			if (delta.Name != null) {
-				var cx = await db.Users
-													.Where(x => x.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
-													.SingleOrDefaultAsync(x => x.Name.Equals(delta.Name, StringComparison.OrdinalIgnoreCase), ct)
-													.ConfigureAwait(false);
+				if (delta.Name != null) {
+					var cx = await db.Users
+														.Where(x => x.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
+														.SingleOrDefaultAsync(x => x.Name.Equals(delta.Name, StringComparison.OrdinalIgnoreCase), ct)
+														.ConfigureAwait(false);
 
-				if (cx != null) return BadRequest($"User name [{delta.Name}] already exists.");
+					if (cx != null) return BadRequest($"User name [{delta.Name}] already exists.");
 
-				user.Name = delta.Name;
+					user.Name = delta.Name;
+				}
+
+				if (delta.Password != null) user.Password = delta.Password;
+				if (!string.IsNullOrWhiteSpace(delta.m_FiltersText)) user.Filters = delta.BaseFilters;
+				if (delta.m_AccessLevel.HasValue) user.AccessLevel = delta.AccessLevel.Value;
+
+				delta.Modified = DateTime.Now;
+
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+				return Ok(new UserX(user));
 			}
-
-			if (delta.Password != null) user.Password = delta.Password;
-			if (!string.IsNullOrWhiteSpace(delta.m_FiltersText)) user.Filters = delta.BaseFilters;
-			if (delta.m_AccessLevel.HasValue) user.AccessLevel = delta.AccessLevel.Value;
-
-			delta.Modified = DateTime.Now;
-
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-			return Ok(new UserX(user));
 		}
 
 		// http://url/config/users/{id}
 		[HttpDelete("users/{id}")]
+		[Authorize(Roles = nameof(Filters.All))]
 		public async Task<IActionResult> DeleteUserAsync (int id, CancellationToken ct)
 		{
-			if (!Sessions.IsAuthorized(Request, out var orgId)) return Unauthorized();
+			var orgId = HttpContext.GetOrg();
 
-			var user = await db.Users
+			using (var db = new ConfigDB()) {
+				var user = await db.Users
 													.Where(x => x.OrgId.Equals(orgId, StringComparison.OrdinalIgnoreCase))
 													.SingleOrDefaultAsync(x => x.ID == id, ct)
 													.ConfigureAwait(false);
 
-			if (user == null) NotFound();
+				if (user == null) NotFound();
 
-			db.Users.Remove(user);
-			await db.SaveChangesAsync(ct).ConfigureAwait(false);
+				db.Users.Remove(user);
+				await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-			return Ok(new UserX(user));
+				return Ok(new UserX(user));
+			}
 		}
 	}
 }
