@@ -1,43 +1,43 @@
-iChen® 4.1 REST API Reference
-=============================
+iChen® 4 REST API Reference
+==========================
 
 Copyright © Chen Hsong Holdings Ltd.  All rights reserved.  
-Document Version: 4.1  
+Document Version: 4  
 
 
 Introduction
 ------------
 
-A REST API is exposed by the iChen® Server 4.1 for advanced data 
-management purposes. Third party software can utilize this REST API by making 
-standard HTTP calls to the listening port (default 5757). 
+A REST API is exposed by the iChen® Server 4 for advanced data
+management purposes. Third party software can utilize this REST API by making
+standard HTTP calls to the listening port (default 5757).
 
-All returned data, as well as all request payload data, are in standard 
-**JSON** format. 
+All returned data, as well as all request payload data, are in standard
+**JSON** format.
 
 
 API Security
 ------------
 
-The REST API is secured and can only be accessed by users with admin 
-privileges. The user must first login to the iChen® Server 4.1 via the [Login API](#login) 
-before any other REST API can be used. 
+The REST API is secured and can only be accessed by users with administrator
+privileges. The user must first login to the iChen® Server 4 instance via the
+[Login API](#login) before any other REST API can be used.
 
-When logging in, a valid password must be provided. A user account with this 
-password must exist on the server for this login operation to succeed. In 
-addition, the account must have administrative authority (i.e. its valid 
-authorization [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters) must be "All"). 
+When logging in, a valid password must be provided. A user account with this
+password must exist on the server for this login operation to succeed. In
+addition, the account must have administrative authority (i.e. its valid
+authorization [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters) must be "All").
 
-When iChen® Server 4.1 responds to a successful login attempt, a cookie 
-is included within the response header containing a unique ID for the login 
-session. This cookie must be included in any subsequent REST API calls. 
-Calling a REST API without a valid session ID cookie will always get back a 
-401 (Unauthorized) error. 
+When the iChen® Server 4 instance responds to a successful login attempt, a
+cookie is included within the response header containing a unique ID for the
+login session. This cookie must be included in any subsequent REST API calls.
+Calling a REST API without a valid session ID cookie will always get back a
+401 (Unauthorized) error.
 
-The login session automatically times-out after an interval of inactivity 
-(default 15 minutes). When a login session is invalidated due to time-out, the 
-user is automatically logged out of the server and must initiate the login 
-process once again before continuing to use the REST API. 
+The login session automatically times-out after an interval of inactivity
+(default 15 minutes). When a login session is invalidated due to time-out, the
+user is automatically logged out of the server and must initiate the login
+process once again before continuing to use the REST API.
 
 
 Authentication
@@ -48,19 +48,19 @@ Login
 
 > `POST http://`*iChen server:Port*`/login`
 
-Use this API, providing a valid password, in order to log into the server. A 
-user account with this password must exist on the server for the login 
-operation to succeed. In addition, the account must have administrative 
-authority (i.e. its valid authorization [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters) 
-must be "All"). A cookie is included with the server's response header that 
-contains a unique ID for this login session. 
+Use this API, providing a valid password, in order to log into the server. A
+user account with this password must exist on the server for the login
+operation to succeed. In addition, the account must have administrative
+authority (i.e. its valid authorization [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters)
+must be "All"). A cookie is included with the server's response header that
+contains a unique ID for this login session.
 
-Make sure that this cookie is sent in any subsequent REST API calls. Calling a 
-REST API without a valid session ID results in a 401 (Unauthorized) error. 
+Make sure that this cookie is sent in any subsequent REST API calls. Calling a
+REST API without a valid session ID results in a 401 (Unauthorized) error.
 
-If the login operation fails for any reason (e.g. invalid password, or the 
-user account with the specified password does not have adequate [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters) 
-authority), a 401 (Unauthorized) error is returned. 
+If the login operation fails for any reason (e.g. invalid password, or the
+user account with the specified password does not have adequate [filters](http://cloud.chenhsong.com/ichen/doc/code/enums.html#Filters)
+authority), a 401 (Unauthorized) error is returned.
 
 
 ### Payload
@@ -112,9 +112,10 @@ containing the type(s) of messages interested in receiving:
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 POST http://iChen:5757/login
 ~~~~~~~~~~~~
+
 ~~~~~~~~~~~~json
 {
   "sessionId": "790AD2ED9F444263AB4861FC0320443C",
@@ -134,7 +135,6 @@ Logout
 ------
 
 > `GET http://`*iChen server:Port*`/logout`
-
 
 
 Server Management
@@ -162,7 +162,7 @@ Get Server Status
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 http://iChen:5757/status
 ~~~~~~~~~~~~
 
@@ -238,9 +238,9 @@ Mold Object With Settings Data
 
 ### Note
 
-Due to the large size of mold data sets, variable values are compressed and 
-encoded into a binary array. Do not attempt to interpret this array or change 
-it in any way or risk data not being able to round-trip. 
+Due to the large size of mold data sets, variable values are compressed and
+encoded into a binary array. Do not attempt to interpret this array or change
+it in any way or risk data not being able to round-trip.
 
 ### Example
 
@@ -265,13 +265,13 @@ Get a List of All the Molds
 
 ### Returns
 
-An JSON object hash, with keys being the unique name for each mold, values 
-being JSON object hashes with keys being the unique ID's for each machine and 
-values being [Mold Objects](#mold-object). 
+An JSON object hash, with keys being the unique name for each mold, values
+being JSON object hashes with keys being the unique ID's for each machine and
+values being [Mold Objects](#mold-object).
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 http://iChen:5757/config/molds
 ~~~~~~~~~~~~
 
@@ -312,17 +312,17 @@ http://iChen:5757/config/molds
 Get a List of all the Molds Saved by a Particular Machine
 ---------------------------------------------------------
 
-> `GET http://`*iChen server:Port*`/config/controllers/`*machine ID*`/molds` 
+> `GET http://`*iChen server:Port*`/config/controllers/`*machine ID*`/molds`
 
 ### Returns
 
-A JSON object hash with keys being the unique names for each mold and values 
-being [Mold Objects](#mold-object). 
+A JSON object hash with keys being the unique names for each mold and values
+being [Mold Objects](#mold-object).
 
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 http://iChen:5757/config/controllers/123456/molds
 ~~~~~~~~~~~~
 
@@ -355,12 +355,12 @@ Get a Particular Mold Data Set by ID
 
 ### Returns
 
-A single [Mold Object With Settings Data](#mold-object-with-settings-data) 
-with the specified unique numeric ID. 
+A single [Mold Object With Settings Data](#mold-object-with-settings-data)
+with the specified unique numeric ID.
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 http://iChen:5757/config/molds/123
 ~~~~~~~~~~~~
 
@@ -385,19 +385,19 @@ Add a Mold Data Set
 
 ### Payload
 
-A single [Mold Object With Settings Data](#mold-object-with-settings-data) in 
-JSON format. 
+A single [Mold Object With Settings Data](#mold-object-with-settings-data) in
+JSON format.
 
-* The `id` property will be ignored and a new unique ID will be assigned to 
-  the mold data set. 
+* The `id` property will be ignored and a new unique ID will be assigned to
+  the mold data set.
 
-* The `numSettings` property will be ignored. 
+* The `numSettings` property will be ignored.
 
-* The `guid` property, if omitted, will be assigned a new one. 
+* The `guid` property, if omitted, will be assigned a new one.
 
-* The `isEnabled` property, if omitted, will be assumed `true`. 
+* The `isEnabled` property, if omitted, will be assumed `true`.
 
-* The `created` property, if omitted, will be set to the current date/time. 
+* The `created` property, if omitted, will be set to the current date/time.
 
 #### Payload Example
 
@@ -411,14 +411,15 @@ JSON format.
 
 ### Returns
 
-A single [Mold Object With Settings Data](#mold-object-with-settings-data) 
-that has been added. 
+A single [Mold Object With Settings Data](#mold-object-with-settings-data)
+that has been added.
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 POST http://iChen:5757/config/molds
 ~~~~~~~~~~~~
+
 ~~~~~~~~~~~~json
 {
   "id":123,
@@ -440,14 +441,15 @@ Delete a Particular Mold Data Set by ID
 
 ### Returns
 
-A single [Mold Object With Settings Data](#mold-object-with-settings-data) 
-that has been deleted. 
+A single [Mold Object With Settings Data](#mold-object-with-settings-data)
+that has been deleted.
 
 ### Example
 
-~~~~~~~~~~~~
+~~~~~~~~~~~~http
 DELETE http://iChen:5757/config/molds/123
 ~~~~~~~~~~~~
+
 ~~~~~~~~~~~~json
 {
   "id":123,
